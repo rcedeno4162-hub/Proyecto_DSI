@@ -10,29 +10,20 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 /* =====================================================
-   CORS (LOCAL + VERCEL)
+   CORS – PRODUCCIÓN + LOCAL + VERCEL
+   (configuración robusta)
 ===================================================== */
-const allowedOrigins = [
-  "http://localhost:5173",
-  process.env.FRONTEND_URL
-];
-
 app.use(
   cors({
-    origin: (origin, callback) => {
-      // Permite llamadas sin origin (Postman, curl)
-      if (!origin) return callback(null, true);
-
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-
-      return callback(new Error("No permitido por CORS"));
-    },
-    methods: ["GET", "POST", "PUT", "DELETE"],
-    allowedHeaders: ["Content-Type"],
+    origin: true, // ✅ permite cualquier origen (Vercel, localhost, etc.)
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
   })
 );
+
+// ⬇️ NECESARIO para preflight (CORS)
+app.options("*", cors());
 
 app.use(express.json());
 
@@ -49,11 +40,11 @@ app.get("/", (_, res) => {
 app.post("/login", async (req, res) => {
   const { cedula, clave, rol } = req.body;
 
-  try {
-    if (!cedula || !clave || !rol) {
-      return res.status(400).json({ mensaje: "Datos incompletos" });
-    }
+  if (!cedula || !clave || !rol) {
+    return res.status(400).json({ mensaje: "Datos incompletos" });
+  }
 
+  try {
     const r = await pool.query(
       "SELECT * FROM usuarios WHERE cedula=$1 AND rol=$2",
       [cedula, rol]
@@ -79,7 +70,8 @@ app.post("/login", async (req, res) => {
       },
     });
   } catch (err) {
-    res.status(500).json({ mensaje: err.message });
+    console.error(err);
+    res.status(500).json({ mensaje: "Error interno del servidor" });
   }
 });
 
@@ -89,11 +81,11 @@ app.post("/login", async (req, res) => {
 app.post("/usuarios", async (req, res) => {
   const { cedula, nombre, clave, rol } = req.body;
 
-  try {
-    if (!cedula || !nombre || !clave || !rol) {
-      return res.status(400).json({ mensaje: "Datos incompletos" });
-    }
+  if (!cedula || !nombre || !clave || !rol) {
+    return res.status(400).json({ mensaje: "Datos incompletos" });
+  }
 
+  try {
     const existe = await pool.query(
       "SELECT id FROM usuarios WHERE cedula=$1",
       [cedula]
@@ -112,7 +104,8 @@ app.post("/usuarios", async (req, res) => {
 
     res.json({ mensaje: "Usuario registrado correctamente" });
   } catch (err) {
-    res.status(500).json({ mensaje: err.message });
+    console.error(err);
+    res.status(500).json({ mensaje: "Error al registrar usuario" });
   }
 });
 
@@ -146,36 +139,6 @@ app.post("/estudiantes", async (req, res) => {
   }
 });
 
-app.put("/estudiantes/:id", async (req, res) => {
-  const { id } = req.params;
-  const { cedula, nombre } = req.body;
-
-  try {
-    await pool.query(
-      "UPDATE estudiantes SET cedula=$1, nombre=$2 WHERE id=$3",
-      [cedula, nombre, id]
-    );
-    res.json({ mensaje: "Estudiante actualizado" });
-  } catch (err) {
-    res.status(500).json({ mensaje: err.message });
-  }
-});
-
-app.delete("/estudiantes/:id", async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    await pool.query(
-      "DELETE FROM calificaciones WHERE estudiante_id=$1",
-      [id]
-    );
-    await pool.query("DELETE FROM estudiantes WHERE id=$1", [id]);
-    res.json({ mensaje: "Estudiante eliminado" });
-  } catch (err) {
-    res.status(500).json({ mensaje: err.message });
-  }
-});
-
 /* =====================================================
    ASIGNATURAS
 ===================================================== */
@@ -183,39 +146,6 @@ app.get("/asignaturas", async (_, res) => {
   try {
     const r = await pool.query("SELECT * FROM asignaturas ORDER BY id");
     res.json(r.rows);
-  } catch (err) {
-    res.status(500).json({ mensaje: err.message });
-  }
-});
-
-app.post("/asignaturas", async (req, res) => {
-  const { nombre, creditos } = req.body;
-
-  if (!nombre || creditos === undefined) {
-    return res.status(400).json({ mensaje: "Datos incompletos" });
-  }
-
-  try {
-    const r = await pool.query(
-      "INSERT INTO asignaturas (nombre, creditos) VALUES ($1,$2) RETURNING *",
-      [nombre, creditos]
-    );
-    res.json(r.rows[0]);
-  } catch (err) {
-    res.status(500).json({ mensaje: err.message });
-  }
-});
-
-app.delete("/asignaturas/:id", async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    await pool.query(
-      "DELETE FROM calificaciones WHERE asignatura_id=$1",
-      [id]
-    );
-    await pool.query("DELETE FROM asignaturas WHERE id=$1", [id]);
-    res.json({ mensaje: "Asignatura eliminada" });
   } catch (err) {
     res.status(500).json({ mensaje: err.message });
   }
@@ -239,35 +169,6 @@ app.get("/calificaciones", async (_, res) => {
     `);
 
     res.json(r.rows);
-  } catch (err) {
-    res.status(500).json({ mensaje: err.message });
-  }
-});
-
-app.post("/calificaciones", async (req, res) => {
-  const { estudiante_id, asignatura_id, nota } = req.body;
-
-  if (!estudiante_id || !asignatura_id || nota === undefined) {
-    return res.status(400).json({ mensaje: "Datos incompletos" });
-  }
-
-  try {
-    await pool.query(
-      "INSERT INTO calificaciones (estudiante_id, asignatura_id, nota) VALUES ($1,$2,$3)",
-      [estudiante_id, asignatura_id, nota]
-    );
-    res.json({ mensaje: "Nota registrada correctamente" });
-  } catch (err) {
-    res.status(500).json({ mensaje: err.message });
-  }
-});
-
-app.delete("/calificaciones/:id", async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    await pool.query("DELETE FROM calificaciones WHERE id=$1", [id]);
-    res.json({ mensaje: "Nota eliminada" });
   } catch (err) {
     res.status(500).json({ mensaje: err.message });
   }
