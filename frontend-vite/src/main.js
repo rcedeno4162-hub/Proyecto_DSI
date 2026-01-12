@@ -1,326 +1,217 @@
-import "bootstrap/dist/css/bootstrap.min.css";
 import "./style.css";
 
-/* =========================
-   API
-========================= */
 const API = import.meta.env.VITE_API_URL;
-
 const app = document.getElementById("app");
 
-/* =========================
-   ESTADO
-========================= */
-let usuario = null;
+/* ===============================
+   ESTADO GLOBAL
+=============================== */
+let usuario = JSON.parse(localStorage.getItem("usuario")) || null;
 
-/* =========================
+/* ===============================
    INIT
-========================= */
-renderLogin();
-
-/* =========================
-   EVENT DELEGATION
-========================= */
-document.addEventListener("click", (e) => {
-  const action = e.target.dataset.action;
-  const id = e.target.dataset.id;
-  if (!action) return;
-
-  if (action === "login") login();
-  if (action === "go-registro") renderRegistro();
-  if (action === "go-login") renderLogin();
-  if (action === "registrar") registrar();
-  if (action === "logout") salir();
-
-  if (action === "estudiantes") cargarEstudiantes();
-  if (action === "asignaturas") cargarAsignaturas();
-  if (action === "calificaciones") cargarCalificaciones();
-  if (action === "nota") vistaRegistrarNota();
-
-  if (action === "add-est") crearEstudiante();
-  if (action === "del-est") eliminarEst(id);
-
-  if (action === "add-asig") crearAsignatura();
-  if (action === "del-asig") eliminarAsig(id);
-
-  if (action === "save-nota") guardarNota();
-  if (action === "del-cal") eliminarCal(id);
-});
-
-/* =====================================================
-   LOGIN
-===================================================== */
-function renderLogin() {
-  app.innerHTML = `
-  <div class="vh-100 d-flex justify-content-center align-items-center">
-    <div class="card p-4 shadow login-card">
-      <h3 class="text-center mb-3">Sistema Académico</h3>
-
-      <input id="cedula" class="form-control mb-2" placeholder="Cédula">
-      <select id="rol" class="form-select mb-2">
-        <option value="">Seleccione rol</option>
-        <option value="admin">Docente</option>
-        <option value="estudiante">Estudiante</option>
-      </select>
-      <input id="clave" type="password" class="form-control mb-3" placeholder="Contraseña">
-
-      <button class="btn btn-primary w-100" data-action="login">Ingresar</button>
-
-      <div class="text-center mt-3">
-        <a href="#" data-action="go-registro">Registrarse</a>
-      </div>
-
-      <div id="msg" class="alert alert-danger mt-3 d-none"></div>
-    </div>
-  </div>`;
+=============================== */
+if (!usuario) {
+  renderLogin();
+} else {
+  renderDashboard();
 }
 
-async function login() {
-  msg.classList.add("d-none");
+/* ===============================
+   LOGIN
+=============================== */
+function renderLogin() {
+  app.innerHTML = `
+    <div class="login-container">
+      <h2>Sistema Académico</h2>
+
+      <input id="cedula" placeholder="Cédula" />
+      <select id="rol">
+        <option value="">Seleccione rol</option>
+        <option value="docente">Docente</option>
+        <option value="admin">Admin</option>
+      </select>
+      <input id="clave" type="password" placeholder="Contraseña" />
+
+      <button onclick="login()">Ingresar</button>
+      <p id="msg" class="error"></p>
+    </div>
+  `;
+}
+
+window.login = async () => {
+  const cedula = document.getElementById("cedula").value;
+  const rol = document.getElementById("rol").value;
+  const clave = document.getElementById("clave").value;
 
   try {
     const res = await fetch(`${API}/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        cedula: cedula.value,
-        clave: clave.value,
-        rol: rol.value,
-      }),
+      body: JSON.stringify({ cedula, rol, clave }),
     });
 
     const data = await res.json();
     if (!res.ok) throw new Error(data.mensaje);
 
     usuario = data.usuario;
+    localStorage.setItem("usuario", JSON.stringify(usuario));
     renderDashboard();
   } catch (err) {
-    msg.textContent = err.message;
-    msg.classList.remove("d-none");
+    document.getElementById("msg").innerText = err.message;
   }
-}
+};
 
-/* =====================================================
-   REGISTRO
-===================================================== */
-function renderRegistro() {
-  app.innerHTML = `
-  <div class="vh-100 d-flex justify-content-center align-items-center">
-    <div class="card p-4 shadow login-card">
-      <h4 class="text-center mb-3">Registro</h4>
-
-      <input id="rCedula" class="form-control mb-2" placeholder="Cédula">
-      <input id="rNombre" class="form-control mb-2" placeholder="Nombre">
-      <select id="rRol" class="form-select mb-2">
-        <option value="admin">Docente</option>
-        <option value="estudiante">Estudiante</option>
-      </select>
-      <input id="rClave" type="password" class="form-control mb-3" placeholder="Contraseña">
-
-      <button class="btn btn-success w-100" data-action="registrar">Registrar</button>
-      <div class="text-center mt-3">
-        <a href="#" data-action="go-login">Volver</a>
-      </div>
-    </div>
-  </div>`;
-}
-
-async function registrar() {
-  await fetch(`${API}/usuarios`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      cedula: rCedula.value,
-      nombre: rNombre.value,
-      rol: rRol.value,
-      clave: rClave.value,
-    }),
-  });
-
-  alert("Usuario registrado");
-  renderLogin();
-}
-
-/* =====================================================
-   DASHBOARD DOCENTE
-===================================================== */
+/* ===============================
+   DASHBOARD
+=============================== */
 function renderDashboard() {
   app.innerHTML = `
-  <nav class="navbar navbar-dark bg-dark px-4">
-    <span class="navbar-brand">Sistema Académico</span>
-    <div>
-      <span class="text-white">${usuario.nombre} (${usuario.rol})</span>
-      <button class="btn btn-danger btn-sm ms-3" data-action="logout">Salir</button>
-    </div>
-  </nav>
+    <div class="app">
+      <aside class="sidebar">
+        <h2>Sistema</h2>
+        ${menuDocente()}
+        <button onclick="logout()">Salir</button>
+      </aside>
 
-  <div class="d-flex">
-    <div class="sidebar">
-      <button data-action="calificaciones">📊 Calificaciones</button>
-      <button data-action="estudiantes">👨‍🎓 Estudiantes</button>
-      <button data-action="asignaturas">📚 Asignaturas</button>
-      <button data-action="nota">✏️ Registrar Nota</button>
+      <main class="main">
+        <div id="contenido"></div>
+      </main>
     </div>
+  `;
 
-    <div class="content">
-      <div id="contenido"></div>
-    </div>
-  </div>`;
-
-  cargarCalificaciones();
+  renderBienvenida();
 }
 
-function salir() {
-  usuario = null;
-  renderLogin();
+window.logout = () => {
+  localStorage.clear();
+  location.reload();
+};
+
+/* ===============================
+   MENÚ DOCENTE (AQUÍ ESTABA EL ERROR)
+=============================== */
+function menuDocente() {
+  if (usuario.rol !== "docente" && usuario.rol !== "admin") return "";
+
+  return `
+    <button onclick="renderEstudiantes()">👨‍🎓 Estudiantes</button>
+    <button onclick="renderAsignaturas()">📚 Asignaturas</button>
+    <button onclick="renderCalificaciones()">📝 Registrar Nota</button>
+  `;
 }
 
-/* =====================================================
+/* ===============================
+   BIENVENIDA
+=============================== */
+function renderBienvenida() {
+  document.getElementById("contenido").innerHTML = `
+    <div class="card">
+      <h3>Bienvenido al sistema</h3>
+      <p>Rol: <b>${usuario.rol}</b></p>
+    </div>
+  `;
+}
+
+/* ===============================
    ESTUDIANTES
-===================================================== */
-async function cargarEstudiantes() {
+=============================== */
+window.renderEstudiantes = async () => {
   const r = await fetch(`${API}/estudiantes`);
   const data = await r.json();
 
-  contenido.innerHTML = `
-    <h4>Estudiantes</h4>
-    <input id="estCedula" class="form-control mb-2" placeholder="Cédula">
-    <input id="estNombre" class="form-control mb-2" placeholder="Nombre">
-    <button class="btn btn-success mb-3" data-action="add-est">Agregar</button>
+  const cont = document.getElementById("contenido");
 
-    <ul class="list-group">
-      ${data
-        .map(
-          (e) => `
-        <li class="list-group-item d-flex justify-content-between">
-          ${e.nombre} (${e.cedula})
-          <button class="btn btn-sm btn-danger" data-action="del-est" data-id="${e.id}">X</button>
-        </li>`
-        )
-        .join("")}
-    </ul>`;
+  cont.innerHTML = `
+    <div class="card">
+      <h3>Estudiantes</h3>
+
+      <div class="form">
+        <input id="cedula" placeholder="Cédula" />
+        <input id="nombre" placeholder="Nombre" />
+        <button onclick="agregarEstudiante()">Agregar</button>
+      </div>
+
+      <div class="list" id="lista"></div>
+    </div>
+  `;
+
+  pintarLista(data);
+};
+
+function pintarLista(data) {
+  const lista = document.getElementById("lista");
+  lista.innerHTML = "";
+
+  data.forEach(e => {
+    lista.innerHTML += `
+      <div class="list-item">
+        <span>${e.nombre} (${e.cedula})</span>
+        <button class="btn-delete" onclick="eliminarEstudiante(${e.id})">
+          Eliminar
+        </button>
+      </div>
+    `;
+  });
 }
 
-async function crearEstudiante() {
+window.agregarEstudiante = async () => {
+  const cedula = document.getElementById("cedula").value;
+  const nombre = document.getElementById("nombre").value;
+
   await fetch(`${API}/estudiantes`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      cedula: estCedula.value,
-      nombre: estNombre.value,
-    }),
+    body: JSON.stringify({ cedula, nombre }),
   });
-  cargarEstudiantes();
-}
 
-async function eliminarEst(id) {
+  renderEstudiantes();
+};
+
+window.eliminarEstudiante = async id => {
   await fetch(`${API}/estudiantes/${id}`, { method: "DELETE" });
-  cargarEstudiantes();
-}
+  renderEstudiantes();
+};
 
-/* =====================================================
+/* ===============================
    ASIGNATURAS
-===================================================== */
-async function cargarAsignaturas() {
+=============================== */
+window.renderAsignaturas = async () => {
   const r = await fetch(`${API}/asignaturas`);
   const data = await r.json();
 
-  contenido.innerHTML = `
-    <h4>Asignaturas</h4>
-    <input id="asigNombre" class="form-control mb-2" placeholder="Nombre">
-    <input id="asigCreditos" class="form-control mb-2" type="number" placeholder="Créditos">
-    <button class="btn btn-success mb-3" data-action="add-asig">Agregar</button>
+  document.getElementById("contenido").innerHTML = `
+    <div class="card">
+      <h3>Asignaturas</h3>
+      <div class="list">
+        ${data
+          .map(a => `<div class="list-item">${a.nombre}</div>`)
+          .join("")}
+      </div>
+    </div>
+  `;
+};
 
-    <ul class="list-group">
-      ${data
-        .map(
-          (a) => `
-        <li class="list-group-item d-flex justify-content-between">
-          ${a.nombre} (${a.creditos})
-          <button class="btn btn-sm btn-danger" data-action="del-asig" data-id="${a.id}">X</button>
-        </li>`
-        )
-        .join("")}
-    </ul>`;
-}
-
-async function crearAsignatura() {
-  await fetch(`${API}/asignaturas`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      nombre: asigNombre.value,
-      creditos: asigCreditos.value,
-    }),
-  });
-  cargarAsignaturas();
-}
-
-async function eliminarAsig(id) {
-  await fetch(`${API}/asignaturas/${id}`, { method: "DELETE" });
-  cargarAsignaturas();
-}
-
-/* =====================================================
-   REGISTRAR NOTA
-===================================================== */
-async function vistaRegistrarNota() {
-  const est = await (await fetch(`${API}/estudiantes`)).json();
-  const asig = await (await fetch(`${API}/asignaturas`)).json();
-
-  contenido.innerHTML = `
-    <h4>Registrar Nota</h4>
-
-    <select id="notaEst" class="form-select mb-2">
-      ${est.map((e) => `<option value="${e.id}">${e.nombre}</option>`).join("")}
-    </select>
-
-    <select id="notaAsig" class="form-select mb-2">
-      ${asig.map((a) => `<option value="${a.id}">${a.nombre}</option>`).join("")}
-    </select>
-
-    <input id="notaValor" type="number" class="form-control mb-2" placeholder="Nota">
-
-    <button class="btn btn-primary" data-action="save-nota">Guardar</button>`;
-}
-
-async function guardarNota() {
-  await fetch(`${API}/calificaciones`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      estudiante_id: notaEst.value,
-      asignatura_id: notaAsig.value,
-      nota: notaValor.value,
-    }),
-  });
-
-  cargarCalificaciones();
-}
-
-/* =====================================================
+/* ===============================
    CALIFICACIONES
-===================================================== */
-async function cargarCalificaciones() {
+=============================== */
+window.renderCalificaciones = async () => {
   const r = await fetch(`${API}/calificaciones`);
   const data = await r.json();
 
-  contenido.innerHTML = `
-    <h4>Calificaciones</h4>
-    <ul class="list-group">
-      ${data
-        .map(
-          (c) => `
-        <li class="list-group-item d-flex justify-content-between">
-          ${c.estudiante} - ${c.asignatura} = <b>${c.nota}</b>
-          <button class="btn btn-sm btn-danger" data-action="del-cal" data-id="${c.id}">X</button>
-        </li>`
-        )
-        .join("")}
-    </ul>`;
-}
-
-async function eliminarCal(id) {
-  await fetch(`${API}/calificaciones/${id}`, { method: "DELETE" });
-  cargarCalificaciones();
-}
+  document.getElementById("contenido").innerHTML = `
+    <div class="card">
+      <h3>Calificaciones</h3>
+      <div class="list">
+        ${data
+          .map(
+            c =>
+              `<div class="list-item">
+                ${c.estudiante} - ${c.asignatura}: <b>${c.nota}</b>
+              </div>`
+          )
+          .join("")}
+      </div>
+    </div>
+  `;
+};
